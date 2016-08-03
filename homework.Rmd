@@ -1,0 +1,220 @@
+---
+title: 'Homework1: Coker'
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mosaic)
+library(fImport)
+library(foreach)
+```
+
+## Probability Practice
+
+### Part A
+
+RC = Random Clicker
+
+TC = Truthful Clicker
+
+$P(RC) = 0.3$
+
+$P(Y|RC) = 0.5$
+
+$P(Y) = P(Y|TC) * P(TC) + P(Y|RC) * P(RC)$
+
+$0.65 =  P(Y|TC) * 0.7 + 0.15$
+
+$P(Y|TC) = (0.65-0.15) / 0.7 = 0.714$
+
+The fraction of people who are truthful clickers answered yes is 71.4%.
+
+### Part B
+
+D = Disease
+
+Pos = Testing Positive
+
+$P(D) = 0.00025$
+
+$P(Pos|D) = 0.993$
+
+$P(Pos) = P(Pos|D) * P(D) + P(Pos|not D) * P(not D)$
+
+$P(Pos) = 0.993 * 0.000025 + 0.0001 * 0.999975$
+
+$P(Pos) = 0.0001248225$
+
+$P(D|Pos) = \frac{P(Pos|D) * P(D)}{P(Pos)}$ = $\frac{0.993 * 0.000025}{0.0001248225}$ = $0.198$
+
+The probability that someone has the disease given that they tested positive is 20%.
+
+Given this low percentage, I don't think this test would be implemented in a universal testing policy because 80% of the people who tested positive would needlessly be required to undergo further testing only to learn that they did not have the disease.
+
+## Exploratory analysis: green buildings
+
+The previous analysis indiscriminately removed buildings that had occupancy rates below 10% without doing further research to determine whether these should be removed or if they have an impact on the final analysis of the rent amounts. The previous analysis also looked at the building types separately (green vs non green buildings), but did not consider that these two building types should be considered together due to the possibility that they may have an impact on each other when analyzed together.
+
+```{r echo = FALSE}
+Buildings = read.csv(file = "https://raw.githubusercontent.com/jgscott/STA380/master/data/greenbuildings.csv")
+
+lm.buildings = lm(Rent~. - renovated - cd_total_07 - total_dd_07, data = Buildings)
+
+summary(lm.buildings)
+
+plot(Buildings$Energystar, Buildings$Rent, main = "Rents from EnergyStar", xlab = "Energystar Rating", ylab = "Rent")
+plot(Buildings$LEED, Buildings$Rent, main = "Rents from LEED", xlab = "LEED Rating", ylab = "Rent")
+plot(Buildings$green_rating, Buildings$Rent, main = "Rents from green rating", xlab = "Green Rating", ylab = "Rent")
+
+mosaicplot(~ LEED + green_rating, data = Buildings, main = "LEED and Green Ratings", xlab = "LEED Rating", ylab = "Green Rating")
+mosaicplot(~ Energystar + green_rating, data = Buildings, main = "EnergyStar and Green Ratings", xlab = "Energystar Rating", ylab = "Green Rating")
+```
+
+
+The summary output above shows that holding the other variables constant, neither Energystar, LEED, nor green_rating appear to have a significant impact on the rent of the building.
+
+The plots above also show that having any of the these three ratings do not bring in a higher rent, and may bring in a lower rent, when analyzed separately.
+
+The mosaic plots above show that very few buildings have a green rating and most buildings are not LEED or Energystar rated. However, when a building has the LEED or Energstar ratings, it is also has a green rating.
+
+It is my conclusion that rent is not currently affected by having a green building, but will need to be further researched when more buildings have been built with the LEED and Energyystar ratings.
+
+## Bootstrapping
+
+For an even split among 5 stocks: SPY, TLT, LQD, EEM, VNQ.
+
+```{r echo = FALSE}
+mystocks = c("SPY", "TLT", "LQD", "EEM", "VNQ")
+
+myprices = yahooSeries(mystocks, from = "2011-01-01", to = Sys.timeDate())
+
+YahooPricesToReturns = function(series) {
+  mycols = grep('Adj.Close', colnames(series))
+  closingprice = series[,mycols]
+  N = nrow(closingprice)
+  percentreturn = as.data.frame(closingprice[2:N,]) / as.data.frame(closingprice[1:(N-1),]) - 1
+  mynames = strsplit(colnames(percentreturn), '.', fixed=TRUE)
+  mynames = lapply(mynames, function(x) return(paste0(x[1], ".PctReturn")))
+  colnames(percentreturn) = mynames
+  as.matrix(na.omit(percentreturn))
+}
+
+myreturns = YahooPricesToReturns(myprices)
+
+plot(myreturns[,1], type='l', main = "Plot of my returns")
+
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+  totalwealth = 10000
+  n_days = 20
+  weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+  holdings = weights * totalwealth
+  wealthtracker = rep(0, n_days) # Set up a placeholder to track total wealth
+  for(today in 1:n_days) {
+    return.today = resample(myreturns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    totalwealth = sum(holdings)
+    wealthtracker[today] = totalwealth
+  }
+  wealthtracker
+}
+
+hist(sim1[,n_days]- 10000, main = "Histogram of possible returns", xlab = "20 Days")
+
+quantile(sim1[,n_days], 0.05) - 10000
+```
+
+For a safer choice than the even split above. I chose to enevly invest in top rated bonds and fixed-income EFTs. Historically the bond market has been less vulnerable to price swings or volatility than the stock market.
+
+```{r echo = FALSE}
+mystocks = c("XMPT", "BABS", "SPHD", "FMB", "PWZ")
+myprices = yahooSeries(mystocks, from = "2011-01-01", to = Sys.timeDate())
+
+YahooPricesToReturns = function(series) {
+  mycols = grep('Adj.Close', colnames(series))
+  closingprice = series[,mycols]
+  N = nrow(closingprice)
+  percentreturn = as.data.frame(closingprice[2:N,]) / as.data.frame(closingprice[1:(N-1),]) - 1
+  mynames = strsplit(colnames(percentreturn), '.', fixed=TRUE)
+  mynames = lapply(mynames, function(x) return(paste0(x[1], ".PctReturn")))
+  colnames(percentreturn) = mynames
+  as.matrix(na.omit(percentreturn))
+}
+
+myreturns = YahooPricesToReturns(myprices)
+
+plot(myreturns[,1], type='l', main = "Plot of safer returns")
+
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+  totalwealth = 10000
+  n_days = 20
+  weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+  holdings = weights * totalwealth
+  wealthtracker = rep(0, n_days) # Set up a placeholder to track total wealth
+  for(today in 1:n_days) {
+    return.today = resample(myreturns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    totalwealth = sum(holdings)
+    wealthtracker[today] = totalwealth
+  }
+  wealthtracker
+}
+
+hist(sim1[,n_days]- 10000, main = "Histogram of safer returns", xlab = "20 Days")
+
+quantile(sim1[,n_days], 0.05) - 10000
+```
+
+For a risker position that the even split above. These are high-yeild stocks, which provide the opportunity have much higher returns, but they are also have the potential to loss money as well
+
+```{r echo = FALSE}
+mystocks = c("WMT", "WM", "WFC", "KO", "LOAN")
+myprices = yahooSeries(mystocks, from = "2011-01-01", to = Sys.timeDate())
+
+YahooPricesToReturns = function(series) {
+  mycols = grep('Adj.Close', colnames(series))
+  closingprice = series[,mycols]
+  N = nrow(closingprice)
+  percentreturn = as.data.frame(closingprice[2:N,]) / as.data.frame(closingprice[1:(N-1),]) - 1
+  mynames = strsplit(colnames(percentreturn), '.', fixed=TRUE)
+  mynames = lapply(mynames, function(x) return(paste0(x[1], ".PctReturn")))
+  colnames(percentreturn) = mynames
+  as.matrix(na.omit(percentreturn))
+}
+
+myreturns = YahooPricesToReturns(myprices)
+
+plot(myreturns[,1], type='l', main = "Plot of riskier returns")
+
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+  totalwealth = 10000
+  n_days = 20
+  weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+  holdings = weights * totalwealth
+  wealthtracker = rep(0, n_days) # Set up a placeholder to track total wealth
+  for(today in 1:n_days) {
+    return.today = resample(myreturns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    totalwealth = sum(holdings)
+    wealthtracker[today] = totalwealth
+  }
+  wealthtracker
+}
+
+hist(sim1[,n_days]- 10000, main = "Histogram of riskier returns", xlab = "20 Days")
+
+quantile(sim1[,n_days], 0.05) - 10000
+```
+
+
+The histogram of the original, even spilt portfolio and the riskier porfolio both have a mean of gains/losses that are typically centered around zero. Whereas The safer portfolio has a men that is usually a bit higher than zero.
+
+The relative risk of these three portfolios can also be seen in the differences in the value at risk of each portfolio at the 5% level. The original portfolio has a higher risk than the safer portfolio, and both af these have a lower risk than the risker portfolio.
+
+
+## Market segmentation
+
+```{r echo = FALSE}
+Market = read.csv(file = "https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv")
+
+```
